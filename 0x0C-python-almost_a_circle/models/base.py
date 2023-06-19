@@ -1,96 +1,188 @@
 #!/usr/bin/python3
-""" Module for test Base class """
-import unittest
-from models.base import Base
-from models.square import Square
-from models.rectangle import Rectangle
-from io import StringIO
-from unittest import TestCase
-from unittest.mock import patch
+
+"""Defines a base model class."""
+import json
+import csv
+import turtle
 
 
-class TestBaseMethods(unittest.TestCase):
-    """ Suite to test Base class """
+class Base:
+    """Base model.
 
-    def setUp(self):
-        """ Method invoked for each test """
-        Base._Base__nb_objects = 0
+    This Represents the "base" for all other classes in project 0x0C*.
 
-    def test_id(self):
-        """ Test assigned id """
-        new = Base(1)
-        self.assertEqual(new.id, 1)
+    Private Class Attributes:
+        __nb_object (int): Number of instantiated Bases.
+    """
 
-    def test_id_default(self):
-        """ Test default id """
-        new = Base()
-        self.assertEqual(new.id, 1)
+    __nb_objects = 0
 
-    def test_id_nb_objects(self):
-        """ Test nb object attribute """
-        new = Base()
-        new2 = Base()
-        new3 = Base()
-        self.assertEqual(new.id, 1)
-        self.assertEqual(new2.id, 2)
-        self.assertEqual(new3.id, 3)
+    def __init__(self, id=None):
+        """Initialize a new Base.
 
-    def test_id_mix(self):
-        """ Test nb object attributes and assigned id """
-        new = Base()
-        new2 = Base(1024)
-        new3 = Base()
-        self.assertEqual(new.id, 1)
-        self.assertEqual(new2.id, 1024)
-        self.assertEqual(new3.id, 2)
+        Args:
+            id (int): The identity of the new Base.
+        """
+        if id is not None:
+            self.id = id
+        else:
+            Base.__nb_objects += 1
+            self.id = Base.__nb_objects
 
-    def test_string_id(self):
-        """ Test string id """
-        new = Base('1')
-        self.assertEqual(new.id, '1')
+    @staticmethod
+    def to_json_string(list_dictionaries):
+        """Return the JSON serialization of a list of dicts.
 
-    def test_more_args_id(self):
-        """ Test passing more args to init method """
-        with self.assertRaises(TypeError):
-            new = Base(1, 1)
+        Args:
+            list_dictionaries (list): A list of dictionaries.
+        """
+        if list_dictionaries is None or list_dictionaries == []:
+            return "[]"
+        return json.dumps(list_dictionaries)
 
-    def test_access_private_attrs(self):
-        """ Test accessing to private attributes """
-        new = Base()
-        with self.assertRaises(AttributeError):
-            new.__nb_objects
+    @classmethod
+    def save_to_file(cls, list_objs):
+        """Write the JSON serialization of a list of objects to a file.
 
-    def test_save_to_file_1(self):
-        """ Test JSON file """
-        Square.save_to_file(None)
-        res = "[]\n"
-        with open("Square.json", "r") as file:
-            with patch('sys.stdout', new=StringIO()) as str_out:
-                print(file.read())
-                self.assertEqual(str_out.getvalue(), res)
+        Args:
+            list_objs (list): A list of inherited Base instances.
+        """
+        filename = cls.__name__ + ".json"
+        with open(filename, "w") as jsonfile:
+            if list_objs is None:
+                jsonfile.write("[]")
+            else:
+                list_dicts = [o.to_dictionary() for o in list_objs]
+                jsonfile.write(Base.to_json_string(list_dicts))
 
+    @staticmethod
+    def from_json_string(json_string):
+        """Return the deserialization of a JSON string.
+
+        Args:
+            json_string (str): A JSON str representation of a list of dicts.
+        Returns:
+            If json_string is None or empty - an empty list.
+            Otherwise - the Python list represented by json_string.
+        """
+        if json_string is None or json_string == "[]":
+            return []
+        return json.loads(json_string)
+
+    @classmethod
+    def create(cls, **dictionary):
+        """Return a class instantied from a dictionary of attributes.
+
+        Args:
+            **dictionary (dict): Key/value pairs of attributes to initialize.
+        """
+        if dictionary and dictionary != {}:
+            if cls.__name__ == "Rectangle":
+                new = cls(1, 1)
+            else:
+                new = cls(1)
+            new.update(**dictionary)
+            return new
+
+    @classmethod
+    def load_from_file(cls):
+        """Return a list of classes instantiated from a file of JSON strings.
+
+        Reads from `<cls.__name__>.json`.
+
+        Returns:
+            If the file does not exist - an empty list.
+            Otherwise - a list of instantiated classes.
+        """
+        filename = str(cls.__name__) + ".json"
         try:
-            os.remove("Square.json")
-        except:
-            pass
+            with open(filename, "r") as jsonfile:
+                list_dicts = Base.from_json_string(jsonfile.read())
+                return [cls.create(**d) for d in list_dicts]
+        except IOError:
+            return []
 
-        Square.save_to_file([])
-        with open("Square.json", "r") as file:
-            self.assertEqual(file.read(), "[]")
+    @classmethod
+    def save_to_file_csv(cls, list_objs):
+        """Write the CSV serialization of a list of objects to a file.
 
-    def test_save_to_file_2(self):
-        """ Test JSON file """
-        Rectangle.save_to_file(None)
-        res = "[]\n"
-        with open("Rectangle.json", "r") as file:
-            with patch('sys.stdout', new=StringIO()) as str_out:
-                print(file.read())
-                self.assertEqual(str_out.getvalue(), res)
+        Args:
+            list_objs (list): A list of inherited Base instances.
+        """
+        filename = cls.__name__ + ".csv"
+        with open(filename, "w", newline="") as csvfile:
+            if list_objs is None or list_objs == []:
+                csvfile.write("[]")
+            else:
+                if cls.__name__ == "Rectangle":
+                    fieldnames = ["id", "width", "height", "x", "y"]
+                else:
+                    fieldnames = ["id", "size", "x", "y"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                for obj in list_objs:
+                    writer.writerow(obj.to_dictionary())
+
+    @classmethod
+    def load_from_file_csv(cls):
+        """Return a list of classes instantiated from a CSV file.
+
+        Reads from `<cls.__name__>.csv`.
+
+        Returns:
+            If the file does not exist - an empty list.
+            Otherwise - a list of instantiated classes.
+        """
+        filename = cls.__name__ + ".csv"
         try:
-            os.remove("Rectangle.json")
-        except:
-            pass
+            with open(filename, "r", newline="") as csvfile:
+                if cls.__name__ == "Rectangle":
+                    fieldnames = ["id", "width", "height", "x", "y"]
+                else:
+                    fieldnames = ["id", "size", "x", "y"]
+                list_dicts = csv.DictReader(csvfile, fieldnames=fieldnames)
+                list_dicts = [dict([k, int(v)] for k, v in d.items())
+                              for d in list_dicts]
+                return [cls.create(**d) for d in list_dicts]
+        except IOError:
+            return []
 
-        Rectangle.save_to_file([])
-        with open("Rectangle.json", "r") as file:
-            self.assertEqual(file.read(), "[]")
+    @staticmethod
+    def draw(list_rectangles, list_squares):
+        """Draw Rectangles and Squares using the turtle module.
+
+        Args:
+            list_rectangles (list): A list of Rectangle objects to draw.
+            list_squares (list): A list of Square objects to draw.
+        """
+        turt = turtle.Turtle()
+        turt.screen.bgcolor("#b7312c")
+        turt.pensize(3)
+        turt.shape("turtle")
+
+        turt.color("#ffffff")
+        for rect in list_rectangles:
+            turt.showturtle()
+            turt.up()
+            turt.goto(rect.x, rect.y)
+            turt.down()
+            for i in range(2):
+                turt.forward(rect.width)
+                turt.left(90)
+                turt.forward(rect.height)
+                turt.left(90)
+            turt.hideturtle()
+
+        turt.color("#b5e3d8")
+        for sq in list_squares:
+            turt.showturtle()
+            turt.up()
+            turt.goto(sq.x, sq.y)
+            turt.down()
+            for i in range(2):
+                turt.forward(sq.width)
+                turt.left(90)
+                turt.forward(sq.height)
+                turt.left(90)
+            turt.hideturtle()
+
+        turtle.exitonclick()
